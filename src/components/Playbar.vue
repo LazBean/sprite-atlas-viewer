@@ -14,7 +14,7 @@
       <span>{{ atlas.img ? cfg.fc : '-' }}</span>
     </div>
 
-    <div ref="scrubRef" class="scrubber" @pointerdown="onScrubDown">
+    <div ref="scrubRef" class="scrubber" @pointerdown="onScrubDown" @wheel.prevent="onScrubWheel">
       <div class="scrub-track">
         <div class="scrub-fill" :style="{ width: `${scrubPct}%` }"></div>
         <div class="scrub-thumb" :style="{ left: `${scrubPct}%` }"></div>
@@ -60,6 +60,13 @@ function onGlobalMove(event) {
 
 function onGlobalUp() {
   scrubbing = false
+}
+
+function onScrubWheel(event) {
+  if (!cfg.fc) return
+
+  const delta = event.deltaY < 0 ? 1 : -1
+  player.frame = Math.max(0, Math.min(cfg.fc - 1, player.frame + delta))
 }
 
 onMounted(() => {

@@ -1,95 +1,114 @@
 /**
  * Minimal PSD composite reader.
- * Reads the merged/flattened image from the Image Data section.
- * Supports: 8-bit RGB and Grayscale, Raw and RLE (PackBits) compression.
- * Requires "Maximize Compatibility" enabled in Photoshop (default).
+ * Reads the merged image from the Image Data section.
+ * Supports 8-bit RGB and Grayscale files with Raw or RLE compression.
+ * Requires "Maximize Compatibility" enabled in Photoshop.
  */
 export function parsePSD(buffer) {
-  const dv = new DataView(buffer)
-  const u8 = new Uint8Array(buffer)
+  const view = new DataView(buffer)
+  const bytes = new Uint8Array(buffer)
 
-  if (dv.getUint32(0) !== 0x38425053)
+  if (view.getUint32(0) !== 0x38425053) {
     throw new Error('Not a valid PSD file')
-
-  const version   = dv.getUint16(4)
-  const channels  = dv.getUint16(12)
-  const height    = dv.getUint32(14)
-  const width     = dv.getUint32(18)
-  const depth     = dv.getUint16(22)
-  const colorMode = dv.getUint16(24)  // 1=Grayscale, 3=RGB
-
-  if (depth !== 8)
-    throw new Error(`Only 8-bit PSD supported (file is ${depth}-bit)`)
-  if (colorMode !== 3 && colorMode !== 1)
-    throw new Error('Only RGB and Grayscale PSD supported')
-
-  let o = 26
-  o += 4 + dv.getUint32(o)  // skip Color Mode Data
-  o += 4 + dv.getUint32(o)  // skip Image Resources
-
-  // Layer & Mask: 4-byte length (PSD) or 8-byte (PSB)
-  if (version === 2) {
-    o += 8 + dv.getUint32(o + 4)
-  } else {
-    o += 4 + dv.getUint32(o)
   }
 
-  const compression = dv.getUint16(o); o += 2
-  if (compression > 1)
-    throw new Error('ZIP-compressed PSD not supported — re-save without ZIP compression')
+  const version = view.getUint16(4)
+  const channels = view.getUint16(12)
+  const height = view.getUint32(14)
+  const width = view.getUint32(18)
+  const depth = view.getUint16(22)
+  const colorMode = view.getUint16(24)
 
-  const total = width * height
-  const chBufs = []
+  if (depth !== 8) {
+    throw new Error(`Only 8-bit PSD supported (file is ${depth}-bit)`)
+  }
+
+  if (colorMode !== 1 && colorMode !== 3) {
+    throw new Error('Only RGB and Grayscale PSD supported')
+  }
+
+  let offset = 26
+  offset += 4 + view.getUint32(offset)
+  offset += 4 + view.getUint32(offset)
+
+  if (version === 2) {
+    offset += 8 + view.getUint32(offset + 4)
+  } else {
+    offset += 4 + view.getUint32(offset)
+  }
+
+  const compression = view.getUint16(offset)
+  offset += 2
+
+  if (compression > 1) {
+    throw new Error('ZIP-compressed PSD not supported - re-save without ZIP compression')
+  }
+
+  const totalPixels = width * height
+  const channelBuffers = []
 
   if (compression === 0) {
-    for (let c = 0; c < channels; c++) {
-      chBufs.push(u8.slice(o, o + total))
-      o += total
+    for (let channel = 0; channel < channels; channel += 1) {
+      channelBuffers.push(bytes.slice(offset, offset + totalPixels))
+      offset += totalPixels
     }
   } else {
-    // RLE (PackBits): skip byte-count table, decompress each channel
-    o += channels * height * 2
-    for (let c = 0; c < channels; c++) {
-      const buf = new Uint8Array(total)
-      let w = 0
-      while (w < total) {
-        const n = dv.getInt8(o++)
-        if (n === -128) {
-          // NOP
-        } else if (n >= 0) {
-          const cnt = n + 1
-          buf.set(u8.subarray(o, o + cnt), w)
-          w += cnt; o += cnt
-        } else {
-          const cnt = 1 - n
-          buf.fill(u8[o++], w, w + cnt)
-          w += cnt
+    offset += channels * height * 2
+
+    for (let channel = 0; channel < channels; channel += 1) {
+      const output = new Uint8Array(totalPixels)
+      let writeOffset = 0
+
+      while (writeOffset < totalPixels) {
+        const header = view.getInt8(offset)
+        offset += 1
+
+        if (header === -128) continue
+
+        if (header >= 0) {
+          const count = header + 1
+          output.set(bytes.subarray(offset, offset + count), writeOffset)
+          writeOffset += count
+          offset += count
+          continue
         }
+
+        const count = 1 - header
+        output.fill(bytes[offset], writeOffset, writeOffset + count)
+        writeOffset += count
+        offset += 1
       }
-      chBufs.push(buf)
+
+      channelBuffers.push(output)
     }
   }
 
   const canvas = document.createElement('canvas')
   canvas.width = width
   canvas.height = height
-  const ctx = canvas.getContext('2d')
-  const imgData = ctx.createImageData(width, height)
-  const px = imgData.data
 
-  for (let i = 0; i < total; i++) {
-    const p = i * 4
+  const ctx = canvas.getContext('2d')
+  const imageData = ctx.createImageData(width, height)
+  const pixels = imageData.data
+
+  for (let i = 0; i < totalPixels; i += 1) {
+    const pixelOffset = i * 4
+
     if (colorMode === 1) {
-      px[p] = px[p + 1] = px[p + 2] = chBufs[0][i]
-      px[p + 3] = chBufs[1] ? chBufs[1][i] : 255
-    } else {
-      px[p]     = chBufs[0] ? chBufs[0][i] : 0
-      px[p + 1] = chBufs[1] ? chBufs[1][i] : 0
-      px[p + 2] = chBufs[2] ? chBufs[2][i] : 0
-      px[p + 3] = chBufs[3] ? chBufs[3][i] : 255
+      const value = channelBuffers[0][i]
+      pixels[pixelOffset] = value
+      pixels[pixelOffset + 1] = value
+      pixels[pixelOffset + 2] = value
+      pixels[pixelOffset + 3] = channelBuffers[1]?.[i] ?? 255
+      continue
     }
+
+    pixels[pixelOffset] = channelBuffers[0]?.[i] ?? 0
+    pixels[pixelOffset + 1] = channelBuffers[1]?.[i] ?? 0
+    pixels[pixelOffset + 2] = channelBuffers[2]?.[i] ?? 0
+    pixels[pixelOffset + 3] = channelBuffers[3]?.[i] ?? 255
   }
 
-  ctx.putImageData(imgData, 0, 0)
+  ctx.putImageData(imageData, 0, 0)
   return canvas
 }

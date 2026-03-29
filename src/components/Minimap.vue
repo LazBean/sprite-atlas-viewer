@@ -1,5 +1,5 @@
 <template>
-  <div class="minimap-wrap" v-if="atlas.img">
+  <div v-if="atlas.img" class="minimap-wrap">
     <div class="sec-hd">Atlas Map</div>
     <canvas
       ref="mmRef"
@@ -8,7 +8,7 @@
       @mousemove="onHover"
       @mouseleave="hoverCell = null; draw()"
     ></canvas>
-    <div class="minimap-hint">click cell → set row / col</div>
+    <div class="minimap-hint">click cell -> set row / col</div>
   </div>
 </template>
 
@@ -16,7 +16,7 @@
 import { ref, watch, nextTick } from 'vue'
 import { cfg, atlas, player, framesPerRow } from '../store.js'
 
-const mmRef     = ref(null)
+const mmRef = ref(null)
 const hoverCell = ref(null)
 
 const MINIMAP_MAX_W = 178
@@ -26,98 +26,100 @@ function draw() {
   if (!canvas || !atlas.img) return
 
   const img = atlas.img
-  const s   = Math.min(MINIMAP_MAX_W / img.width, 1)
+  const scale = Math.min(MINIMAP_MAX_W / img.width, 1)
 
-  canvas.width  = Math.round(img.width  * s)
-  canvas.height = Math.round(img.height * s)
+  canvas.width = Math.round(img.width * scale)
+  canvas.height = Math.round(img.height * scale)
 
   const ctx = canvas.getContext('2d')
   ctx.imageSmoothingEnabled = false
-
-  // Draw atlas thumbnail
   ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
 
   const { fw, fh } = cfg
-  const fprow   = framesPerRow.value
-  const numCols = fprow
-  const numRows = Math.ceil(img.height / fh)
+  const cols = framesPerRow.value
+  const rows = Math.ceil(img.height / fh)
 
-  // Grid lines
   ctx.strokeStyle = 'rgba(255,255,255,0.15)'
-  ctx.lineWidth   = 0.5
+  ctx.lineWidth = 0.5
 
-  for (let c = 1; c < numCols; c++) {
+  for (let col = 1; col < cols; col += 1) {
     ctx.beginPath()
-    ctx.moveTo(c * fw * s, 0)
-    ctx.lineTo(c * fw * s, canvas.height)
-    ctx.stroke()
-  }
-  for (let r = 1; r < numRows; r++) {
-    ctx.beginPath()
-    ctx.moveTo(0, r * fh * s)
-    ctx.lineTo(canvas.width, r * fh * s)
+    ctx.moveTo(col * fw * scale, 0)
+    ctx.lineTo(col * fw * scale, canvas.height)
     ctx.stroke()
   }
 
-  // Highlight all frames in animation (dim tint)
-  for (let i = 0; i < cfg.fc; i++) {
-    const abs = cfg.fco + i
-    const col = abs % fprow
-    const row = cfg.fr + Math.floor(abs / fprow)
+  for (let row = 1; row < rows; row += 1) {
+    ctx.beginPath()
+    ctx.moveTo(0, row * fh * scale)
+    ctx.lineTo(canvas.width, row * fh * scale)
+    ctx.stroke()
+  }
+
+  for (let i = 0; i < cfg.fc; i += 1) {
+    const absoluteFrame = cfg.fco + i
+    const col = absoluteFrame % cols
+    const row = cfg.fr + Math.floor(absoluteFrame / cols)
     ctx.fillStyle = i === player.frame
       ? 'rgba(91,184,245,0.30)'
       : 'rgba(91,184,245,0.08)'
-    ctx.fillRect(col * fw * s, row * fh * s, fw * s, fh * s)
+    ctx.fillRect(col * fw * scale, row * fh * scale, fw * scale, fh * scale)
   }
 
-  // Border on current frame
-  const curAbs = cfg.fco + player.frame
-  const curCol = curAbs % fprow
-  const curRow = cfg.fr + Math.floor(curAbs / fprow)
+  const currentAbsoluteFrame = cfg.fco + player.frame
+  const currentCol = currentAbsoluteFrame % cols
+  const currentRow = cfg.fr + Math.floor(currentAbsoluteFrame / cols)
   ctx.strokeStyle = '#5bb8f5'
-  ctx.lineWidth   = 1.5
-  ctx.strokeRect(curCol * fw * s + 0.5, curRow * fh * s + 0.5, fw * s - 1, fh * s - 1)
+  ctx.lineWidth = 1.5
+  ctx.strokeRect(
+    currentCol * fw * scale + 0.5,
+    currentRow * fh * scale + 0.5,
+    fw * scale - 1,
+    fh * scale - 1,
+  )
 
-  // Hover highlight
-  if (hoverCell.value) {
-    ctx.fillStyle   = 'rgba(255,255,255,0.12)'
-    ctx.strokeStyle = 'rgba(255,255,255,0.5)'
-    ctx.lineWidth   = 1
-    const { col, row } = hoverCell.value
-    ctx.fillRect  (col * fw * s, row * fh * s, fw * s, fh * s)
-    ctx.strokeRect(col * fw * s + 0.5, row * fh * s + 0.5, fw * s - 1, fh * s - 1)
-  }
+  if (!hoverCell.value) return
+
+  const { col, row } = hoverCell.value
+  ctx.fillStyle = 'rgba(255,255,255,0.12)'
+  ctx.strokeStyle = 'rgba(255,255,255,0.5)'
+  ctx.lineWidth = 1
+  ctx.fillRect(col * fw * scale, row * fh * scale, fw * scale, fh * scale)
+  ctx.strokeRect(col * fw * scale + 0.5, row * fh * scale + 0.5, fw * scale - 1, fh * scale - 1)
 }
 
-function cellFromEvent(e) {
+function cellFromEvent(event) {
   const canvas = mmRef.value
   if (!canvas || !atlas.img) return null
+
   const rect = canvas.getBoundingClientRect()
-  const s    = canvas.width / atlas.img.width
-  const col  = Math.floor((e.clientX - rect.left)  / (cfg.fw * s))
-  const row  = Math.floor((e.clientY - rect.top)   / (cfg.fh * s))
-  const maxC = framesPerRow.value - 1
-  const maxR = Math.floor(atlas.img.height / cfg.fh) - 1
-  if (col < 0 || row < 0 || col > maxC || row > maxR) return null
+  const scale = canvas.width / atlas.img.width
+  const col = Math.floor((event.clientX - rect.left) / (cfg.fw * scale))
+  const row = Math.floor((event.clientY - rect.top) / (cfg.fh * scale))
+  const maxCol = framesPerRow.value - 1
+  const maxRow = Math.ceil(atlas.img.height / cfg.fh) - 1
+
+  if (col < 0 || row < 0 || col > maxCol || row > maxRow) return null
   return { col, row }
 }
 
-function onClick(e) {
-  const cell = cellFromEvent(e)
+function onClick(event) {
+  const cell = cellFromEvent(event)
   if (!cell) return
-  cfg.fr    = cell.row
-  cfg.fco   = cell.col
+
+  cfg.fr = cell.row
+  cfg.fco = cell.col
   player.frame = 0
 }
 
-function onHover(e) {
-  hoverCell.value = cellFromEvent(e)
+function onHover(event) {
+  hoverCell.value = cellFromEvent(event)
   draw()
 }
 
 watch(
   [() => atlas.img, () => cfg.fw, () => cfg.fh, () => cfg.fr, () => cfg.fco, () => player.frame],
   () => nextTick(draw),
-  { flush: 'post' }
+  { flush: 'post' },
 )
 </script>

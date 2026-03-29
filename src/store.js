@@ -6,6 +6,7 @@ const HANDLE_DB_NAME = 'sprite-atlas-viewer'
 const HANDLE_STORE_NAME = 'file-handles'
 const LAST_FILE_HANDLE_KEY = 'last-file'
 const FILE_PICKER_ID = 'sprite-atlas-viewer'
+const WATCH_INTERVAL_MS = 300
 
 const DEFAULT_CFG = Object.freeze({
   fw: 64,
@@ -162,6 +163,18 @@ let _objURL = null
 let _lastMod = 0
 let _watchTimer = null
 
+function clearWatchedFile() {
+  clearInterval(_watchTimer)
+  _watchTimer = null
+  _fileHandle = null
+  _lastMod = 0
+}
+
+function isSupportedAtlasFile(file) {
+  if (!file?.name) return false
+  return file.type.startsWith('image/') || file.name.toLowerCase().endsWith('.psd')
+}
+
 function supportsHandlePersistence() {
   return typeof window !== 'undefined' && 'indexedDB' in window
 }
@@ -234,6 +247,17 @@ async function queryReadPermission(handle) {
   }
 }
 
+async function openFromHandle(handle, persist = true) {
+  _fileHandle = handle
+  _pickerStartHandle = handle
+  if (persist) await saveLastFileHandle(handle)
+
+  const file = await handle.getFile()
+  _lastMod = file.lastModified
+  await handleFile(file, true)
+  _startWatch()
+}
+
 function buildPickerOptions() {
   const options = {
     id: FILE_PICKER_ID,
@@ -265,18 +289,41 @@ async function showPickerWithFallback() {
   }
 }
 
+export async function openLooseFile(file) {
+  clearWatchedFile()
+  await handleFile(file, false)
+}
+
 export async function openFile() {
   try {
-    ;[_fileHandle] = await showPickerWithFallback()
-    _pickerStartHandle = _fileHandle
-    await saveLastFileHandle(_fileHandle)
-
-    const file = await _fileHandle.getFile()
-    _lastMod = file.lastModified
-    await handleFile(file, true)
-    _startWatch()
+    const [handle] = await showPickerWithFallback()
+    await openFromHandle(handle)
   } catch (err) {
     if (err?.name !== 'AbortError') setStatus('err', 'failed to open')
+  }
+}
+
+export async function openDroppedFile(dataTransfer) {
+  const item = Array.from(dataTransfer?.items || []).find(entry => entry.kind === 'file')
+
+  if (item && typeof item.getAsFileSystemHandle === 'function') {
+    try {
+      const handle = await item.getAsFileSystemHandle()
+      if (handle?.kind === 'file') {
+        const file = await handle.getFile()
+        if (isSupportedAtlasFile(file)) {
+          await openFromHandle(handle)
+          return
+        }
+      }
+    } catch (err) {
+      console.warn('Failed to watch dropped file', err)
+    }
+  }
+
+  const file = dataTransfer?.files?.[0]
+  if (isSupportedAtlasFile(file)) {
+    await openLooseFile(file)
   }
 }
 
@@ -334,7 +381,7 @@ function _startWatch() {
         await handleFile(file, true)
       }
     } catch {}
-  }, 300)
+  }, WATCH_INTERVAL_MS)
 }
 
 export async function restoreLastSession() {
@@ -349,11 +396,7 @@ export async function restoreLastSession() {
   if (permission !== 'granted') return
 
   try {
-    _fileHandle = handle
-    const file = await handle.getFile()
-    _lastMod = file.lastModified
-    await handleFile(file, true)
-    _startWatch()
+    await openFromHandle(handle, false)
   } catch (err) {
     console.warn('Failed to restore last file', err)
   }

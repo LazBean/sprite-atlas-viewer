@@ -1,5 +1,5 @@
 <template>
-  <aside class="sidebar">
+  <aside class="sidebar" :class="{ 'is-mobile': isMobile, 'is-open': open }">
     <div class="sidebar-controls">
       <div class="sec">
         <div class="sec-hd">Atlas</div>
@@ -31,7 +31,7 @@
             <span class="lbl">FPS</span>
             <span class="fps-num">{{ cfg.fps }}</span>
           </div>
-          <input v-model.number="cfg.fps" type="range" min="1" max="60">
+          <input v-model.number="cfg.fps" type="range" min="1" max="60" @wheel.prevent="onFpsWheel">
         </div>
         <div class="tog-row">
           <span class="lbl">Loop</span>
@@ -51,7 +51,7 @@
         <div class="sec-hd">Display</div>
         <div class="row">
           <label>Scale</label>
-          <select v-model.number="cfg.scale">
+          <select class="ui-select" v-model.number="cfg.scale" @wheel.prevent="onScaleWheel">
             <option :value="1">1x</option>
             <option :value="2">2x</option>
             <option :value="3">3x</option>
@@ -63,7 +63,7 @@
         </div>
         <div class="row">
           <label>BG</label>
-          <select v-model="cfg.bg">
+          <select class="ui-select" v-model="cfg.bg" @wheel.prevent="onBgWheel">
             <option value="checker">Checker</option>
             <option value="bg-black">Black</option>
             <option value="bg-white">White</option>
@@ -80,19 +80,50 @@
 
 <script setup>
 import { ref } from 'vue'
-import { cfg, atlas, player, hasNativePicker, openFile, handleFile } from '../store.js'
+import { cfg, atlas, player, hasNativePicker, openFile, openLooseFile } from '../store.js'
 import Minimap from './Minimap.vue'
 
+defineProps({
+  isMobile: { type: Boolean, default: false },
+  open: { type: Boolean, default: true },
+})
+
+defineEmits(['close'])
+
 const fileInputRef = ref(null)
+const scaleOptions = [1, 2, 3, 4, 6, 8, 0]
+const bgOptions = ['checker', 'bg-black', 'bg-white', 'bg-dark', 'bg-mid']
 
 function onOpen() {
   if (hasNativePicker) openFile()
   else fileInputRef.value?.click()
 }
 
-function onFileInput(event) {
+function onFpsWheel(event) {
+  const delta = event.deltaY < 0 ? 1 : -1
+  cfg.fps = Math.max(1, Math.min(60, cfg.fps + delta))
+}
+
+function moveOption(options, currentValue, delta) {
+  const index = options.indexOf(currentValue)
+  const safeIndex = index === -1 ? 0 : index
+  const nextIndex = Math.max(0, Math.min(options.length - 1, safeIndex + delta))
+  return options[nextIndex]
+}
+
+function onScaleWheel(event) {
+  const delta = event.deltaY < 0 ? -1 : 1
+  cfg.scale = moveOption(scaleOptions, cfg.scale, delta)
+}
+
+function onBgWheel(event) {
+  const delta = event.deltaY < 0 ? -1 : 1
+  cfg.bg = moveOption(bgOptions, cfg.bg, delta)
+}
+
+async function onFileInput(event) {
   const file = event.target.files?.[0]
-  if (file) handleFile(file, false)
+  if (file) await openLooseFile(file)
   event.target.value = ''
 }
 </script>

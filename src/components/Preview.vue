@@ -1,9 +1,9 @@
 <template>
   <div class="preview">
     <div
+      ref="wrapRef"
       class="canvas-wrap"
       :class="[cfg.bg, { 'drag-active': isDragging }]"
-      ref="wrapRef"
       @wheel.prevent="onWheel"
       @mousedown="onMouseDown"
       @mousemove="onMouseMove"
@@ -14,24 +14,33 @@
       @dragover.prevent
       @drop.prevent="onDrop"
     >
-      <!-- Empty state -->
-      <div class="empty-state" v-if="!atlas.img">
-        <div class="px-grid" ref="gridRef"></div>
+      <button
+        v-if="!atlas.img"
+        class="empty-state empty-state-button"
+        type="button"
+        @click="onOpenFromEmptyState"
+      >
+        <input
+          ref="fileInputRef"
+          type="file"
+          accept="image/*,.psd"
+          style="display:none"
+          @change="onFileInput"
+        >
+        <div ref="gridRef" class="px-grid"></div>
         <div class="empty-label">Drop a PNG or PSD here</div>
         <div class="empty-sub">or click Open File in the sidebar</div>
-      </div>
+      </button>
 
-      <!-- Main canvas -->
       <canvas
+        v-show="atlas.img"
         ref="canvasRef"
         class="main-canvas"
-        v-show="atlas.img"
         :style="canvasTransform"
       ></canvas>
 
-      <!-- Scale badge: shows screen pixels per sprite pixel -->
-      <div class="scale-badge" v-if="atlas.img">
-        {{ effectiveScale }}× px
+      <div v-if="atlas.img" class="scale-badge">
+        {{ effectiveScale }}x px
       </div>
     </div>
 
@@ -41,109 +50,172 @@
 
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
-import { cfg, atlas, player, advance, handleFile } from '../store.js'
+import { cfg, atlas, player, advance, hasNativePicker, openDroppedFile, openFile, openLooseFile } from '../store.js'
 import Playbar from './Playbar.vue'
 
-const canvasRef  = ref(null)
-const wrapRef    = ref(null)
-const gridRef    = ref(null)
+const canvasRef = ref(null)
+const wrapRef = ref(null)
+const gridRef = ref(null)
+const fileInputRef = ref(null)
 const isDragging = ref(false)
 
-// Pan state
 const panX = ref(0)
 const panY = ref(0)
-let panning = false
-let pStartX = 0, pStartY = 0, pStartPanX = 0, pStartPanY = 0
 
-// Effective integer scale (for rendering)
+let panning = false
+let pStartX = 0
+let pStartY = 0
+let pStartPanX = 0
+let pStartPanY = 0
+let rafId = 0
+let flashTimeout = 0
+
 const effectiveScale = computed(() => {
   if (cfg.scale !== 0) return cfg.scale
+
   const wrap = wrapRef.value
   if (!wrap || !cfg.fw || !cfg.fh) return 1
-  const aw = Math.max(1, wrap.clientWidth  - 24)
-  const ah = Math.max(1, wrap.clientHeight - 24)
-  return Math.max(1, Math.min(Math.floor(aw / cfg.fw), Math.floor(ah / cfg.fh)))
+
+  const availableWidth = Math.max(1, wrap.clientWidth - 24)
+  const availableHeight = Math.max(1, wrap.clientHeight - 24)
+
+  return Math.max(
+    1,
+    Math.min(
+      Math.floor(availableWidth / cfg.fw),
+      Math.floor(availableHeight / cfg.fh),
+    ),
+  )
 })
 
 const canvasTransform = computed(() => ({
   transform: `translate(${panX.value}px, ${panY.value}px)`,
 }))
 
-// ─── Draw ──────────────────────────────────────────────────
 function draw() {
   const canvas = canvasRef.value
   if (!canvas || !atlas.img) return
 
   const ctx = canvas.getContext('2d')
   const { fw, fh, fr, fco } = cfg
-  const s = effectiveScale.value
+  const scale = effectiveScale.value
 
-  canvas.width  = fw * s
-  canvas.height = fh * s
+  canvas.width = fw * scale
+  canvas.height = fh * scale
   ctx.clearRect(0, 0, canvas.width, canvas.height)
   ctx.imageSmoothingEnabled = false
 
-  const fprow = Math.max(1, Math.floor(atlas.img.width / fw))
-  const abs   = fco + player.frame
-  const col   = abs % fprow
-  const row   = fr  + Math.floor(abs / fprow)
+  const framesPerRow = Math.max(1, Math.floor(atlas.img.width / fw))
+  const absoluteFrame = fco + player.frame
+  const col = absoluteFrame % framesPerRow
+  const row = fr + Math.floor(absoluteFrame / framesPerRow)
 
-  ctx.drawImage(atlas.img, col * fw, row * fh, fw, fh, 0, 0, fw * s, fh * s)
+  ctx.drawImage(atlas.img, col * fw, row * fh, fw, fh, 0, 0, fw * scale, fh * scale)
 }
 
-// ─── Animation loop ────────────────────────────────────────
-let rafId
-
-function loop(ts) {
+function loop(timestamp) {
   rafId = requestAnimationFrame(loop)
   if (!atlas.img || !player.playing) return
+
   const interval = 1000 / cfg.fps
-  if (ts - player.lastTick < interval) return
-  player.lastTick = ts
+  if (timestamp - player.lastTick < interval) return
+
+  player.lastTick = timestamp
   advance()
   draw()
 }
 
-// Redraw on state changes (when paused or config changes)
+function onResize() {
+  if (cfg.scale === 0) nextTick(draw)
+}
+
+function onWheel(event) {
+  const delta = event.deltaY < 0 ? 1 : -1
+  const currentScale = cfg.scale === 0 ? effectiveScale.value : cfg.scale
+  cfg.scale = Math.max(1, Math.min(16, Math.round(currentScale) + delta))
+  panX.value = 0
+  panY.value = 0
+}
+
+function onMouseDown(event) {
+  if (event.button === 1 || (event.button === 0 && event.altKey)) {
+    event.preventDefault()
+    panning = true
+    pStartX = event.clientX
+    pStartY = event.clientY
+    pStartPanX = panX.value
+    pStartPanY = panY.value
+  }
+}
+
+function onMouseMove(event) {
+  if (!panning) return
+  panX.value = pStartPanX + (event.clientX - pStartX)
+  panY.value = pStartPanY + (event.clientY - pStartY)
+}
+
+function stopPan() {
+  panning = false
+}
+
+function onDragLeave(event) {
+  if (!wrapRef.value?.contains(event.relatedTarget)) isDragging.value = false
+}
+
+async function onDrop(event) {
+  isDragging.value = false
+  await openDroppedFile(event.dataTransfer)
+}
+
+function onOpenFromEmptyState() {
+  if (hasNativePicker) openFile()
+  else fileInputRef.value?.click()
+}
+
+async function onFileInput(event) {
+  const file = event.target.files?.[0]
+  if (file) await openLooseFile(file)
+  event.target.value = ''
+}
+
 watch(
-  [() => player.frame, () => atlas.img, () => cfg.fw, () => cfg.fh,
-   () => cfg.fr, () => cfg.fco, () => cfg.scale],
+  [() => player.frame, () => atlas.img, () => cfg.fw, () => cfg.fh, () => cfg.fr, () => cfg.fco, () => cfg.scale],
   () => nextTick(draw),
-  { flush: 'post' }
+  { flush: 'post' },
 )
 
-// Flash green border on atlas reload
-let flashTimeout
 watch(() => atlas.img, () => {
   if (!atlas.img) return
+
   nextTick(() => {
-    const c = canvasRef.value
-    if (!c) return
-    c.classList.remove('flash')
-    void c.offsetWidth
-    c.classList.add('flash')
+    const canvas = canvasRef.value
+    if (!canvas) return
+
+    canvas.classList.remove('flash')
+    void canvas.offsetWidth
+    canvas.classList.add('flash')
+
     clearTimeout(flashTimeout)
-    flashTimeout = setTimeout(() => c.classList.remove('flash'), 550)
+    flashTimeout = window.setTimeout(() => canvas.classList.remove('flash'), 550)
   })
 })
 
-// Reset pan when atlas or scale changes
 watch([() => atlas.img, () => cfg.scale], () => {
   panX.value = 0
   panY.value = 0
 })
 
 onMounted(() => {
-  // Build decorative pixel grid in empty state
   if (gridRef.value) {
     const shades = ['#2a2a2a', '#333', '#222', '#3a3a3a', '#292929']
-    for (let i = 0; i < 40; i++) {
-      const s = document.createElement('span')
-      s.style.background    = shades[i % shades.length]
-      s.style.animationDelay = (i * 0.07) + 's'
-      gridRef.value.appendChild(s)
+    for (let i = 0; i < 40; i += 1) {
+      const cell = document.createElement('span')
+      cell.style.background = shades[i % shades.length]
+      cell.style.animationDelay = `${i * 0.07}s`
+      gridRef.value.appendChild(cell)
     }
   }
+
   rafId = requestAnimationFrame(loop)
   window.addEventListener('resize', onResize)
 })
@@ -153,49 +225,4 @@ onUnmounted(() => {
   window.removeEventListener('resize', onResize)
   clearTimeout(flashTimeout)
 })
-
-function onResize() {
-  if (cfg.scale === 0) nextTick(draw)
-}
-
-// ─── Zoom (mouse wheel) ────────────────────────────────────
-// Scroll changes integer scale → crisp pixel art zoom
-function onWheel(e) {
-  const delta = e.deltaY < 0 ? 1 : -1
-  const cur   = cfg.scale === 0 ? effectiveScale.value : cfg.scale
-  cfg.scale   = Math.max(1, Math.min(16, Math.round(cur) + delta))
-  panX.value  = 0
-  panY.value  = 0
-}
-
-// ─── Pan (Alt + drag or middle click) ─────────────────────
-function onMouseDown(e) {
-  if (e.button === 1 || (e.button === 0 && e.altKey)) {
-    e.preventDefault()
-    panning    = true
-    pStartX    = e.clientX; pStartY = e.clientY
-    pStartPanX = panX.value; pStartPanY = panY.value
-  }
-}
-
-function onMouseMove(e) {
-  if (!panning) return
-  panX.value = pStartPanX + (e.clientX - pStartX)
-  panY.value = pStartPanY + (e.clientY - pStartY)
-}
-
-function stopPan() { panning = false }
-
-// ─── Drag & drop ───────────────────────────────────────────
-function onDragLeave(e) {
-  if (!wrapRef.value.contains(e.relatedTarget)) isDragging.value = false
-}
-
-async function onDrop(e) {
-  isDragging.value = false
-  const file = e.dataTransfer.files[0]
-  if (file && (file.type.startsWith('image/') || file.name.endsWith('.psd'))) {
-    handleFile(file, false)
-  }
-}
 </script>

@@ -1,5 +1,15 @@
 <template>
   <header>
+    <button
+      v-if="isMobile"
+      class="menu-btn"
+      type="button"
+      :aria-expanded="sidebarOpen ? 'true' : 'false'"
+      @click="$emit('toggle-sidebar')"
+    >
+      {{ sidebarOpen ? 'Close' : 'Menu' }}
+    </button>
+
     <span class="logo">Sprite Atlas</span>
     <div class="vr"></div>
     <div class="status-chip">
@@ -52,6 +62,13 @@
 <script setup>
 import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { player } from '../store.js'
+
+defineProps({
+  isMobile: { type: Boolean, default: false },
+  sidebarOpen: { type: Boolean, default: false },
+})
+
+defineEmits(['toggle-sidebar'])
 
 const pressed = reactive({})
 const scrollActive = ref(false)

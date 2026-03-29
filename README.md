@@ -2,6 +2,8 @@
 
 ![Sprite Atlas Viewer preview](docs/preview.png)
 
+Live demo: [lazbean.github.io/sprite-atlas-viewer](https://lazbean.github.io/sprite-atlas-viewer/)
+
 Minimal web viewer for sprite sheet animation preview.
 
 It is made for a simple pixel-art workflow:
@@ -10,12 +12,6 @@ It is made for a simple pixel-art workflow:
 - save atlas with `Ctrl+S`
 - keep the viewer open on a second screen
 - see the animation update almost instantly
-
-## Live Link
-
-App available at:
-
-`https://LazBean.github.io/sprite-atlas-viewer/`
 
 ## Features
 

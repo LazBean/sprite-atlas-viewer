@@ -12,8 +12,7 @@
           @change="onFileInput"
         >
         <p class="fname">{{ atlas.fileName || 'No file selected' }}</p>
-        <p v-if="hasNativePicker" class="picker-note">remembers last folder and tries to restore last file</p>
-        <p v-else class="warn-badge">live watch unavailable in this browser</p>
+        <p v-if="!hasNativePicker" class="warn-badge">live watch unavailable in this browser</p>
       </div>
 
       <div class="sec">

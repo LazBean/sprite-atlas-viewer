@@ -86,19 +86,45 @@ header {
   margin-left: auto;
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 14px;
   color: var(--dim);
   font-size: 10px;
+}
+
+.shortcut-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  white-space: nowrap;
+}
+
+.shortcut-keys {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.shortcut-label {
+  color: var(--dim);
+  letter-spacing: .2px;
 }
 
 kbd {
   background: var(--s3);
   border: 1px solid var(--b2);
-  border-radius: 2px;
-  padding: 1px 5px;
+  border-radius: 4px;
+  padding: 2px 6px;
   font-family: var(--font);
   font-size: 9px;
   color: var(--mid);
+  transition: color .12s ease, background .12s ease, border-color .12s ease, box-shadow .12s ease;
+}
+
+kbd.active {
+  color: var(--ac-strong);
+  background: rgba(138,169,189,.12);
+  border-color: var(--acbo);
+  box-shadow: 0 0 0 1px rgba(138,169,189,.12);
 }
 
 /* ── Layout ──────────────────────────────────────────── */
@@ -223,13 +249,6 @@ select:focus { border-color: var(--acbo); }
   margin-top: 5px;
   font-size: 9px;
   color: var(--yel);
-}
-
-.picker-note {
-  margin-top: 5px;
-  font-size: 9px;
-  line-height: 1.45;
-  color: var(--dim);
 }
 
 .fps-block { margin-bottom: 8px; }

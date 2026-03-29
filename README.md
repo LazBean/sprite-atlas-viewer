@@ -2,7 +2,7 @@
 
 ![Sprite Atlas Viewer preview](docs/preview.png)
 
-Live demo: [lazbean.github.io/sprite-atlas-viewer](https://lazbean.github.io/sprite-atlas-viewer/)
+Live: [lazbean.github.io/sprite-atlas-viewer](https://lazbean.github.io/sprite-atlas-viewer/)
 
 Minimal web viewer for sprite sheet animation preview.
 
@@ -21,7 +21,6 @@ It is made for a simple pixel-art workflow:
 - FPS control
 - minimap for quick row and column picking
 - saved last-used settings
-- remembers last folder and tries to restore the last opened file when the browser allows it
 - GitHub Pages friendly deployment
 
 ## Browser Note

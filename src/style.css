@@ -77,6 +77,13 @@ header {
   gap: 7px;
 }
 
+.status-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
 .status-dot {
   width: 6px;
   height: 6px;
@@ -109,6 +116,12 @@ header {
 .status-text {
   font-size: 10px;
   color: var(--mid);
+}
+
+.status-subtext {
+  font-size: 9px;
+  color: var(--dim);
+  white-space: nowrap;
 }
 
 .menu-btn {
@@ -346,6 +359,7 @@ select:focus {
   margin-top: 5px;
   font-size: 9px;
   color: var(--yel);
+  line-height: 1.45;
 }
 
 .fps-block {
@@ -444,8 +458,11 @@ input[type=range]::-moz-range-thumb {
 
 .minimap-canvas {
   display: block;
-  width: 100%;
+  width: auto;
+  max-width: 100%;
   height: auto;
+  max-height: 180px;
+  margin: 0 auto;
   cursor: crosshair;
   image-rendering: pixelated;
   image-rendering: crisp-edges;

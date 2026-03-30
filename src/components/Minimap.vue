@@ -20,13 +20,14 @@ const mmRef = ref(null)
 const hoverCell = ref(null)
 
 const MINIMAP_MAX_W = 178
+const MINIMAP_MAX_H = 180
 
 function draw() {
   const canvas = mmRef.value
   if (!canvas || !atlas.img) return
 
   const img = atlas.img
-  const scale = Math.min(MINIMAP_MAX_W / img.width, 1)
+  const scale = Math.min(MINIMAP_MAX_W / img.width, MINIMAP_MAX_H / img.height, 1)
 
   canvas.width = Math.round(img.width * scale)
   canvas.height = Math.round(img.height * scale)
@@ -93,9 +94,12 @@ function cellFromEvent(event) {
   if (!canvas || !atlas.img) return null
 
   const rect = canvas.getBoundingClientRect()
-  const scale = canvas.width / atlas.img.width
-  const col = Math.floor((event.clientX - rect.left) / (cfg.fw * scale))
-  const row = Math.floor((event.clientY - rect.top) / (cfg.fh * scale))
+  if (!rect.width || !rect.height) return null
+
+  const scaleX = rect.width / atlas.img.width
+  const scaleY = rect.height / atlas.img.height
+  const col = Math.floor((event.clientX - rect.left) / (cfg.fw * scaleX))
+  const row = Math.floor((event.clientY - rect.top) / (cfg.fh * scaleY))
   const maxCol = framesPerRow.value - 1
   const maxRow = Math.ceil(atlas.img.height / cfg.fh) - 1
 

@@ -23,13 +23,13 @@
         <input
           ref="fileInputRef"
           type="file"
-          accept="image/*,.psd"
+          accept="image/*,.psd,.ase,.aseprite"
           style="display:none"
           @change="onFileInput"
         >
         <div ref="gridRef" class="px-grid"></div>
-        <div class="empty-label">Drop a PNG or PSD here</div>
-        <div class="empty-sub">or click Open File in the sidebar</div>
+        <div class="empty-label">Drop an image, PSD, or Aseprite file here</div>
+        <div class="empty-sub">{{ emptyStateSubtext }}</div>
       </button>
 
       <canvas
@@ -87,6 +87,12 @@ const effectiveScale = computed(() => {
     ),
   )
 })
+
+const emptyStateSubtext = computed(() => (
+  hasNativePicker
+    ? 'or click Open File in the sidebar'
+    : 'or click Open File in the sidebar. After save, pick the file again.'
+))
 
 const canvasTransform = computed(() => ({
   transform: `translate(${panX.value}px, ${panY.value}px)`,

@@ -1,5 +1,6 @@
 import { reactive, computed } from 'vue'
 import { parsePSD } from './utils/psd.js'
+import { parseAseprite } from './utils/aseprite.js'
 
 const CFG_STORAGE_KEY = 'sav:cfg:v3'
 const HANDLE_DB_NAME = 'sprite-atlas-viewer'
@@ -22,6 +23,14 @@ const DEFAULT_CFG = Object.freeze({
 })
 
 const BG_OPTIONS = new Set(['checker', 'bg-black', 'bg-white', 'bg-dark', 'bg-mid'])
+
+function supportsNativePicker() {
+  return typeof window !== 'undefined' && typeof window.showOpenFilePicker === 'function'
+}
+
+function getIdleStatusMessage() {
+  return supportsNativePicker() ? 'no file' : 'manual reopen'
+}
 
 function clampInt(value, fallback, min, max) {
   const num = Number.parseInt(value, 10)
@@ -72,7 +81,7 @@ export const player = reactive({
   isWatching: false,
   lastUpdate: 0,
   status: 'idle',
-  statusMsg: 'no file',
+  statusMsg: getIdleStatusMessage(),
 })
 
 export const framesPerRow = computed(() => {
@@ -143,7 +152,7 @@ export function setStatus(status, msg) {
       player.statusMsg = 'loaded'
       break
     default:
-      player.statusMsg = 'no file'
+      player.statusMsg = getIdleStatusMessage()
   }
 }
 
@@ -155,13 +164,23 @@ export function tickStatus() {
   else player.statusMsg = `${Math.floor(sec / 60)}m ago`
 }
 
-export const hasNativePicker = typeof window.showOpenFilePicker === 'function'
+export const hasNativePicker = supportsNativePicker()
 
 let _fileHandle = null
 let _pickerStartHandle = null
 let _objURL = null
 let _lastMod = 0
 let _watchTimer = null
+
+function getFileExtension(name = '') {
+  const lower = name.toLowerCase()
+  if (lower.endsWith('.aseprite')) return '.aseprite'
+  if (lower.endsWith('.psd')) return '.psd'
+  if (lower.endsWith('.ase')) return '.ase'
+
+  const dotIndex = lower.lastIndexOf('.')
+  return dotIndex >= 0 ? lower.slice(dotIndex) : ''
+}
 
 function clearWatchedFile() {
   clearInterval(_watchTimer)
@@ -172,7 +191,8 @@ function clearWatchedFile() {
 
 function isSupportedAtlasFile(file) {
   if (!file?.name) return false
-  return file.type.startsWith('image/') || file.name.toLowerCase().endsWith('.psd')
+  const ext = getFileExtension(file.name)
+  return (file.type || '').startsWith('image/') || ext === '.psd' || ext === '.ase' || ext === '.aseprite'
 }
 
 function supportsHandlePersistence() {
@@ -265,7 +285,7 @@ function buildPickerOptions() {
       description: 'Sprite Atlas',
       accept: {
         'image/*': ['.png', '.jpg', '.jpeg', '.webp', '.gif'],
-        'application/octet-stream': ['.psd'],
+        'application/octet-stream': ['.psd', '.ase', '.aseprite'],
       },
     }],
     multiple: false,
@@ -331,8 +351,15 @@ export async function handleFile(file, watching) {
   player.isWatching = watching
 
   let source
+  let parsedMeta = null
+  const ext = getFileExtension(file.name)
 
-  if (file.name.toLowerCase().endsWith('.psd')) {
+  if (_objURL) {
+    URL.revokeObjectURL(_objURL)
+    _objURL = null
+  }
+
+  if (ext === '.psd') {
     setStatus('warn', 'parsing psd...')
     try {
       source = parsePSD(await file.arrayBuffer())
@@ -341,8 +368,17 @@ export async function handleFile(file, watching) {
       console.error(err)
       return
     }
+  } else if (ext === '.ase' || ext === '.aseprite') {
+    setStatus('warn', 'parsing aseprite...')
+    try {
+      parsedMeta = parseAseprite(await file.arrayBuffer())
+      source = parsedMeta.canvas
+    } catch (err) {
+      setStatus('err', err.message || 'aseprite error')
+      console.error(err)
+      return
+    }
   } else {
-    if (_objURL) URL.revokeObjectURL(_objURL)
     _objURL = URL.createObjectURL(file)
 
     const img = new Image()
@@ -362,6 +398,15 @@ export async function handleFile(file, watching) {
 
   atlas.img = source
   atlas.fileName = file.name
+
+  if (parsedMeta) {
+    cfg.fw = parsedMeta.frameWidth
+    cfg.fh = parsedMeta.frameHeight
+    cfg.fc = parsedMeta.frameCount
+    cfg.fr = 0
+    cfg.fco = 0
+  }
+
   player.frame = 0
   player.ppDir = 1
   player.lastUpdate = Date.now()

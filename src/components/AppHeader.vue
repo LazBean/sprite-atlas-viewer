@@ -14,7 +14,10 @@
     <div class="vr"></div>
     <div class="status-chip">
       <div class="status-dot" :class="player.status"></div>
-      <span class="status-text">{{ player.statusMsg }}</span>
+      <div class="status-copy">
+        <span class="status-text">{{ player.statusMsg }}</span>
+        <span v-if="!hasNativePicker" class="status-subtext">open works, auto-reload unavailable</span>
+      </div>
     </div>
 
     <div class="shortcuts">
@@ -61,7 +64,7 @@
 
 <script setup>
 import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
-import { player } from '../store.js'
+import { hasNativePicker, player } from '../store.js'
 
 defineProps({
   isMobile: { type: Boolean, default: false },

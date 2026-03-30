@@ -7,12 +7,14 @@
         <input
           ref="fileInputRef"
           type="file"
-          accept="image/*,.psd"
+          accept="image/*,.psd,.ase,.aseprite"
           style="display:none"
           @change="onFileInput"
         >
         <p class="fname">{{ atlas.fileName || 'No file selected' }}</p>
-        <p v-if="!hasNativePicker" class="warn-badge">live watch unavailable in this browser</p>
+        <p v-if="!hasNativePicker" class="warn-badge">
+          Firefox / Safari mode: file open works, but after save you need to pick the file again.
+        </p>
       </div>
 
       <div class="sec">

@@ -17,6 +17,7 @@ It is made for a simple pixel-art workflow:
 
 - browser image formats, PSD, and Aseprite loading
 - live file watching via File System Access API in supported browsers
+- Google Drive open + polling-based live reload
 - frame width / height / count / row / column controls
 - FPS control
 - minimap for quick row and column picking
@@ -39,3 +40,17 @@ GitHub Pages works fine for hosting the app, but local file watching still depen
 npm install
 npm run dev
 ```
+
+## Google Drive Setup
+
+To enable `Open from Drive...`, create a `.env` file with:
+
+```bash
+VITE_GOOGLE_DRIVE_CLIENT_ID=your-client-id.apps.googleusercontent.com
+VITE_GOOGLE_DRIVE_API_KEY=your-browser-api-key
+VITE_GOOGLE_DRIVE_APP_ID=your-google-cloud-project-number
+```
+
+In Google Cloud, enable both `Google Drive API` and `Google Picker API`, and add your local/dev and production URLs to the OAuth web client's authorized JavaScript origins.
+
+The Google Drive integration uses OAuth + Google Picker for file selection and checks for file updates every few seconds using Drive metadata.

@@ -346,6 +346,15 @@ select:focus {
   border-color: var(--acbo);
 }
 
+.open-btn:disabled {
+  cursor: default;
+  opacity: .45;
+}
+
+.drive-btn {
+  margin-top: 6px;
+}
+
 .fname {
   margin-top: 6px;
   font-size: 10px;
@@ -353,6 +362,14 @@ select:focus {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.source-note {
+  margin-top: 4px;
+  font-size: 9px;
+  color: var(--ac);
+  letter-spacing: .6px;
+  text-transform: uppercase;
 }
 
 .warn-badge {

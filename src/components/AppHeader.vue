@@ -16,7 +16,7 @@
       <div class="status-dot" :class="player.status"></div>
       <div class="status-copy">
         <span class="status-text">{{ player.statusMsg }}</span>
-        <span v-if="!hasNativePicker" class="status-subtext">open works, auto-reload unavailable</span>
+        <span v-if="statusSubtext" class="status-subtext">{{ statusSubtext }}</span>
       </div>
     </div>
 
@@ -93,6 +93,12 @@ const isMac = computed(() => {
 
 const panModifierLabel = computed(() => (isMac.value ? 'Option' : 'Alt'))
 const panModifierActive = computed(() => !!pressed.AltLeft || !!pressed.AltRight)
+const statusSubtext = computed(() => {
+  if (player.watchKind === 'drive') return 'google drive polling'
+  if (player.watchKind === 'local') return 'local file watcher'
+  if (!hasNativePicker) return 'open works, auto-reload unavailable'
+  return ''
+})
 
 function isPressed(code) {
   return !!pressed[code]

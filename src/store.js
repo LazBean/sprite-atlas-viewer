@@ -1,6 +1,16 @@
 import { reactive, computed } from 'vue'
 import { parsePSD } from './utils/psd.js'
 import { parseAseprite } from './utils/aseprite.js'
+import {
+  googleDrive,
+  pickGoogleDriveFile,
+  getGoogleDriveFileMetadata,
+  downloadGoogleDriveFile,
+  startGoogleDriveWatch,
+  stopGoogleDriveWatch,
+} from './drive.js'
+
+export { googleDrive }
 
 const CFG_STORAGE_KEY = 'sav:cfg:v3'
 const HANDLE_DB_NAME = 'sprite-atlas-viewer'
@@ -71,6 +81,7 @@ export const cfg = reactive({ ...DEFAULT_CFG })
 export const atlas = reactive({
   img: null,
   fileName: '',
+  sourceLabel: '',
 })
 
 export const player = reactive({
@@ -79,6 +90,7 @@ export const player = reactive({
   ppDir: 1,
   lastTick: 0,
   isWatching: false,
+  watchKind: '',
   lastUpdate: 0,
   status: 'idle',
   statusMsg: getIdleStatusMessage(),
@@ -187,6 +199,7 @@ function clearWatchedFile() {
   _watchTimer = null
   _fileHandle = null
   _lastMod = 0
+  stopGoogleDriveWatch()
 }
 
 function isSupportedAtlasFile(file) {
@@ -268,13 +281,14 @@ async function queryReadPermission(handle) {
 }
 
 async function openFromHandle(handle, persist = true) {
+  stopGoogleDriveWatch()
   _fileHandle = handle
   _pickerStartHandle = handle
   if (persist) await saveLastFileHandle(handle)
 
   const file = await handle.getFile()
   _lastMod = file.lastModified
-  await handleFile(file, true)
+  await handleFile(file, true, 'local')
   _startWatch()
 }
 
@@ -311,7 +325,7 @@ async function showPickerWithFallback() {
 
 export async function openLooseFile(file) {
   clearWatchedFile()
-  await handleFile(file, false)
+  await handleFile(file, false, 'manual')
 }
 
 export async function openFile() {
@@ -347,8 +361,9 @@ export async function openDroppedFile(dataTransfer) {
   }
 }
 
-export async function handleFile(file, watching) {
+export async function handleFile(file, watching, watchKind = watching ? 'local' : 'manual') {
   player.isWatching = watching
+  player.watchKind = watchKind
 
   let source
   let parsedMeta = null
@@ -398,6 +413,7 @@ export async function handleFile(file, watching) {
 
   atlas.img = source
   atlas.fileName = file.name
+  atlas.sourceLabel = watchKind === 'drive' ? 'Google Drive' : 'Local file'
 
   if (parsedMeta) {
     cfg.fw = parsedMeta.frameWidth
@@ -413,6 +429,53 @@ export async function handleFile(file, watching) {
   setStatus(watching ? 'ok' : 'loaded')
 }
 
+export async function openGoogleDrive() {
+  if (!googleDrive.isConfigured) {
+    setStatus('err', 'drive not configured')
+    return
+  }
+
+  googleDrive.busy = true
+  googleDrive.error = ''
+  setStatus('warn', 'connecting drive...')
+
+  try {
+    const picked = await pickGoogleDriveFile()
+    const meta = await getGoogleDriveFileMetadata(picked.id)
+    const file = await downloadGoogleDriveFile(meta)
+
+    clearWatchedFile()
+    player.watchKind = 'drive'
+    await handleFile(file, true, 'drive')
+
+    startGoogleDriveWatch(meta, {
+      onBeforeReload() {
+        setStatus('warn', 'syncing drive...')
+      },
+      async onFile(nextFile) {
+        player.watchKind = 'drive'
+        await handleFile(nextFile, true, 'drive')
+      },
+      onError(error) {
+        console.warn('Failed to sync Google Drive file', error)
+        setStatus('warn', 'drive retrying...')
+      },
+    })
+  } catch (err) {
+    if (err?.name !== 'AbortError') {
+      googleDrive.error = err?.message || 'Google Drive error'
+      setStatus('err', 'drive failed')
+      console.error(err)
+    } else if (!atlas.img) {
+      setStatus('idle')
+    } else {
+      setStatus(player.isWatching ? 'ok' : 'loaded')
+    }
+  } finally {
+    googleDrive.busy = false
+  }
+}
+
 function _startWatch() {
   clearInterval(_watchTimer)
   _watchTimer = setInterval(async () => {
@@ -423,7 +486,7 @@ function _startWatch() {
       if (file.lastModified !== _lastMod) {
         _lastMod = file.lastModified
         setStatus('warn', 'reloading...')
-        await handleFile(file, true)
+        await handleFile(file, true, 'local')
       }
     } catch {}
   }, WATCH_INTERVAL_MS)
@@ -449,6 +512,7 @@ export async function restoreLastSession() {
 
 export function cleanup() {
   clearInterval(_watchTimer)
+  stopGoogleDriveWatch()
   if (_objURL) URL.revokeObjectURL(_objURL)
 }
 

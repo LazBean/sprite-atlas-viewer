@@ -4,6 +4,13 @@
       <div class="sec">
         <div class="sec-hd">Atlas</div>
         <button class="open-btn" @click="onOpen">Open File...</button>
+        <button
+          class="open-btn drive-btn"
+          :disabled="!googleDrive.isConfigured || googleDrive.busy"
+          @click="onOpenDrive"
+        >
+          {{ googleDrive.busy ? 'Connecting Drive...' : 'Open from Drive...' }}
+        </button>
         <input
           ref="fileInputRef"
           type="file"
@@ -12,8 +19,18 @@
           @change="onFileInput"
         >
         <p class="fname">{{ atlas.fileName || 'No file selected' }}</p>
+        <p v-if="atlas.fileName" class="source-note">{{ atlas.sourceLabel }}</p>
         <p v-if="!hasNativePicker" class="warn-badge">
           Firefox / Safari mode: file open works, but after save you need to pick the file again.
+        </p>
+        <p v-if="googleDrive.isConfigured" class="warn-badge">
+          Google Drive live sync checks for updates every few seconds.
+        </p>
+        <p v-else class="warn-badge">
+          Set `VITE_GOOGLE_DRIVE_CLIENT_ID`, `VITE_GOOGLE_DRIVE_API_KEY`, and `VITE_GOOGLE_DRIVE_APP_ID`.
+        </p>
+        <p v-if="googleDrive.error" class="warn-badge">
+          {{ googleDrive.error }}
         </p>
       </div>
 
@@ -82,7 +99,7 @@
 
 <script setup>
 import { ref } from 'vue'
-import { cfg, atlas, player, hasNativePicker, openFile, openLooseFile } from '../store.js'
+import { cfg, atlas, player, hasNativePicker, googleDrive, openFile, openGoogleDrive, openLooseFile } from '../store.js'
 import Minimap from './Minimap.vue'
 
 defineProps({
@@ -99,6 +116,10 @@ const bgOptions = ['checker', 'bg-black', 'bg-white', 'bg-dark', 'bg-mid']
 function onOpen() {
   if (hasNativePicker) openFile()
   else fileInputRef.value?.click()
+}
+
+function onOpenDrive() {
+  openGoogleDrive()
 }
 
 function onFpsWheel(event) {

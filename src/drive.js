@@ -3,7 +3,7 @@ import { reactive } from 'vue'
 const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.readonly'
 const DRIVE_POLL_INTERVAL_MS = 4000
 const DRIVE_FIELDS = 'id,name,mimeType,modifiedTime,version'
-const SUPPORTED_EXTENSIONS = ['.psd', '.ase', '.aseprite']
+const SUPPORTED_EXTENSIONS = ['.psd', '.psp', '.ase', '.aseprite']
 
 const CLIENT_ID = (import.meta.env.VITE_GOOGLE_DRIVE_CLIENT_ID || '').trim()
 const API_KEY = (import.meta.env.VITE_GOOGLE_DRIVE_API_KEY || '').trim()

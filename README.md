@@ -15,7 +15,7 @@ It is made for a simple pixel-art workflow:
 
 ## Features
 
-- browser image formats, PSD, and Aseprite loading
+- browser image formats, PSD, Pixel Studio (PSP), and Aseprite loading
 - live file watching via File System Access API in supported browsers
 - Google Drive open + polling-based live reload
 - frame width / height / count / row / column controls
@@ -25,6 +25,8 @@ It is made for a simple pixel-art workflow:
 - GitHub Pages friendly deployment
 
 Aseprite files are flattened into a horizontal frame strip automatically, and the viewer sets frame width, frame height, and frame count from the file.
+
+Pixel Studio `.psp` projects are composited the same way, using the frames of the project's active clip. Frame delay is read as well, so FPS is set from the file when every frame shares the same delay. Large canvases wrap into a grid instead of one long strip.
 
 ## Browser Note
 

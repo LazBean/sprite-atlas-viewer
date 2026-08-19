@@ -1,6 +1,7 @@
 import { reactive, computed } from 'vue'
 import { parsePSD } from './utils/psd.js'
 import { parseAseprite } from './utils/aseprite.js'
+import { parsePSP } from './utils/psp.js'
 import {
   googleDrive,
   pickGoogleDriveFile,
@@ -18,6 +19,7 @@ const HANDLE_STORE_NAME = 'file-handles'
 const LAST_FILE_HANDLE_KEY = 'last-file'
 const FILE_PICKER_ID = 'sprite-atlas-viewer'
 const WATCH_INTERVAL_MS = 300
+const PARSED_EXTENSIONS = new Set(['.psd', '.psp', '.ase', '.aseprite'])
 
 const DEFAULT_CFG = Object.freeze({
   fw: 64,
@@ -188,6 +190,7 @@ function getFileExtension(name = '') {
   const lower = name.toLowerCase()
   if (lower.endsWith('.aseprite')) return '.aseprite'
   if (lower.endsWith('.psd')) return '.psd'
+  if (lower.endsWith('.psp')) return '.psp'
   if (lower.endsWith('.ase')) return '.ase'
 
   const dotIndex = lower.lastIndexOf('.')
@@ -205,7 +208,7 @@ function clearWatchedFile() {
 function isSupportedAtlasFile(file) {
   if (!file?.name) return false
   const ext = getFileExtension(file.name)
-  return (file.type || '').startsWith('image/') || ext === '.psd' || ext === '.ase' || ext === '.aseprite'
+  return (file.type || '').startsWith('image/') || PARSED_EXTENSIONS.has(ext)
 }
 
 function supportsHandlePersistence() {
@@ -299,7 +302,7 @@ function buildPickerOptions() {
       description: 'Sprite Atlas',
       accept: {
         'image/*': ['.png', '.jpg', '.jpeg', '.webp', '.gif'],
-        'application/octet-stream': ['.psd', '.ase', '.aseprite'],
+        'application/octet-stream': ['.psd', '.psp', '.ase', '.aseprite'],
       },
     }],
     multiple: false,
@@ -383,6 +386,16 @@ export async function handleFile(file, watching, watchKind = watching ? 'local' 
       console.error(err)
       return
     }
+  } else if (ext === '.psp') {
+    setStatus('warn', 'parsing psp...')
+    try {
+      parsedMeta = await parsePSP(await file.arrayBuffer())
+      source = parsedMeta.canvas
+    } catch (err) {
+      setStatus('err', err.message || 'psp error')
+      console.error(err)
+      return
+    }
   } else if (ext === '.ase' || ext === '.aseprite') {
     setStatus('warn', 'parsing aseprite...')
     try {
@@ -421,6 +434,7 @@ export async function handleFile(file, watching, watchKind = watching ? 'local' 
     cfg.fc = parsedMeta.frameCount
     cfg.fr = 0
     cfg.fco = 0
+    if (parsedMeta.fps) cfg.fps = parsedMeta.fps
   }
 
   player.frame = 0

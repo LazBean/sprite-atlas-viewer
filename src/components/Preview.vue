@@ -23,12 +23,12 @@
         <input
           ref="fileInputRef"
           type="file"
-          accept="image/*,.psd,.ase,.aseprite"
+          accept="image/*,.psd,.psp,.ase,.aseprite"
           style="display:none"
           @change="onFileInput"
         >
         <div ref="gridRef" class="px-grid"></div>
-        <div class="empty-label">Drop an image, PSD, or Aseprite file here</div>
+        <div class="empty-label">Drop an image, PSD, PSP, or Aseprite file here</div>
         <div class="empty-sub">{{ emptyStateSubtext }}</div>
       </button>
 

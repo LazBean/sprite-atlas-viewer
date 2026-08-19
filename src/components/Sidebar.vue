@@ -14,7 +14,7 @@
         <input
           ref="fileInputRef"
           type="file"
-          accept="image/*,.psd,.ase,.aseprite"
+          accept="image/*,.psd,.psp,.ase,.aseprite"
           style="display:none"
           @change="onFileInput"
         >
